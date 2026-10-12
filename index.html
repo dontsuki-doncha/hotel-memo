@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1f3a5f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<title>宿泊メモ</title>
+<style>
+:root{--main:#1f3a5f;--ai:#6b4fbb;--acc:#c9a24b;--bg:#f6f4ef;--card:#fff;--tx:#222;--sub:#777;--line:#e2ddd2}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,"Noto Sans JP",sans-serif;background:var(--bg);color:var(--tx);font-size:16px;line-height:1.5;padding-bottom:80px}
+header{position:sticky;top:0;z-index:5;background:var(--main);color:#fff;display:flex;align-items:center;gap:8px;padding:10px 12px;padding-top:calc(10px + env(safe-area-inset-top))}
+header h1{flex:1;margin:0;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header button{background:rgba(255,255,255,.15);color:#fff;border:0;border-radius:8px;padding:8px 12px;font-size:14px}
+main{padding:12px;max-width:640px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
+.stay{cursor:pointer}
+.stay b{font-size:17px}.sub{color:var(--sub);font-size:13px}
+label{display:block;font-size:13px;color:var(--sub);margin:10px 0 4px}
+input[type=text],input[type=number],input[type=date],textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;font-size:16px;font-family:inherit;background:#fff}
+textarea{min-height:80px;resize:vertical}
+.btn{display:block;width:100%;border:0;border-radius:10px;padding:13px;font-size:16px;background:var(--main);color:#fff;margin-top:10px}
+.btn.sec{background:#fff;color:var(--main);border:1px solid var(--main)}
+.btn.acc{background:var(--acc);color:#222}
+.btn.danger{background:#fff;color:#b33;border:1px solid #b33}
+details{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:10px}
+summary{padding:14px 12px;font-weight:bold;cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:8px}
+summary::-webkit-details-marker{display:none}
+summary .cnt{font-weight:normal;font-size:13px;color:var(--sub)}
+.body{padding:0 12px 12px}
+.q{padding:10px 0;border-top:1px dashed var(--line)}
+.q .ql{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;font-size:14px;font-weight:600}
+.aib{flex:none;border:1px solid var(--ai);color:var(--ai);background:#fff;border-radius:16px;padding:4px 10px;font-size:12px}
+.q.ai .aib{background:var(--ai);color:#fff}
+.q.ai .inp{opacity:.35;pointer-events:none}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.chip{border:1px solid var(--line);background:#fff;border-radius:16px;padding:6px 12px;font-size:14px}
+.chip.on{background:var(--main);color:#fff;border-color:var(--main)}
+.unit{display:flex;align-items:center;gap:6px}.unit span{color:var(--sub)}
+.star{color:var(--acc);font-size:11px;margin-left:4px}
+pre{white-space:pre-wrap;word-break:break-all;background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px;font-size:13px}
+.toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:20px;font-size:14px;z-index:9;opacity:0;transition:.3s;pointer-events:none}
+.toast.on{opacity:.92}
+.note{font-size:12px;color:var(--sub);margin-top:4px}
+</style>
+</head>
+<body>
+<header><button id="hb" style="display:none">←</button><h1 id="ht">宿泊メモ</h1><button id="ha" style="display:none"></button></header>
+<main id="app"></main>
+<div class="toast" id="toast"></div>
+<script>
+// ===== 質問カテゴリ (ここを編集すればカスタマイズできます) =====
+// t:1行 l:長文 n:数値(u=単位) c:単一選択+自由入力 m:複数選択  f:1 = AIが調べやすい事実項目
+const CATS=[
+{id:'book',name:'予約・アップグレード',icon:'📝',q:[
+ {id:'route',l:'予約経路・料金プラン',t:'c',o:['公式','Bonvoy会員料金','Bonvoy Bootcamp','OTA','ポイント宿泊','特典宿泊']},
+ {id:'status',l:'会員ステータス',t:'c',o:['ブロンズ','シルバー','ゴールド','プラチナ','チタン','アンバサダー','非会員']},
+ {id:'upg',l:'アップグレードの有無と内容(予約→実際)',t:'l'},
+ {id:'gift',l:'ウェルカムギフト・アメニティ特典',t:'l'},
+ {id:'eci',l:'アーリーチェックインは可能だった?',t:'c',o:['できた','一部可','できなかった','頼まなかった']},
+ {id:'eci_t',l:'実際に入れた時刻',t:'t'},
+ {id:'lco_g',l:'レイトチェックアウトの保証時刻(規定)',t:'t',f:1},
+ {id:'lco_a',l:'実際のチェックアウト時刻・交渉結果',t:'t'},
+ {id:'bf_perk',l:'会員特典の朝食・ラウンジ利用条件',t:'l',f:1}]},
+{id:'acc',name:'アクセス・到着',icon:'🚉',q:[
+ {id:'sta',l:'最寄り駅・空港からの行き方',t:'l',f:1},
+ {id:'park',l:'駐車場の料金・条件',t:'t',f:1},
+ {id:'cit',l:'チェックイン方法・場所',t:'c',o:['フロント','ロビーラウンジ','ラウンジ','スマホ/自動']},
+ {id:'wait',l:'チェックイン待ち時間',t:'n',u:'分'},
+ {id:'wd',l:'ウェルカムドリンク/おもてなし',t:'t'},
+ {id:'lobby',l:'ロビー・外観の印象',t:'l'}]},
+{id:'room',name:'客室',icon:'🛏️',q:[
+ {id:'floor',l:'階数',t:'n',u:'階'},
+ {id:'size',l:'広さ(公式)',t:'n',u:'㎡',f:1},
+ {id:'bed',l:'ベッドの種類・サイズ',t:'t',f:1},
+ {id:'view',l:'眺望',t:'m',o:['海','山','街','川','公園','中庭','壁','空']},
+ {id:'view_n',l:'眺望の具体メモ',t:'l'},
+ {id:'sound',l:'防音・騒音',t:'c',o:['静か','少し気になる','うるさい']},
+ {id:'usb',l:'コンセント・USB・充電環境',t:'t'},
+ {id:'desk',l:'デスク・作業環境/Wi-Fi',t:'t'},
+ {id:'closet',l:'クローゼット・収納',t:'t'},
+ {id:'tv',l:'TV・設備(ネスプレッソ等)',t:'t',f:1}]},
+{id:'bath',name:'バス・アメニティ',icon:'🛁',q:[
+ {id:'tub',l:'バスタブ・シャワー',t:'c',o:['独立シャワー有','バスタブのみ','洗い場付き','雨降りシャワー']},
+ {id:'sink',l:'洗面台(ダブル/シングル)',t:'t'},
+ {id:'press',l:'水圧・お湯の出',t:'c',o:['良い','普通','弱い']},
+ {id:'toilet',l:'トイレ設備',t:'m',o:['ウォシュレット','独立','ドア付き','段差']},
+ {id:'amen',l:'アメニティブランド',t:'t',f:1},
+ {id:'skin',l:'スキンケア類の有無',t:'t'},
+ {id:'skin_b',l:'スキンケア・ボディ用品のブランド',t:'t',f:1},
+ {id:'dry',l:'ドライヤー',t:'t'},
+ {id:'pj',l:'パジャマ・部屋着',t:'t'},
+ {id:'slip',l:'スリッパ',t:'t'},
+ {id:'toothb',l:'歯ブラシ等',t:'t'}]},
+{id:'mini',name:'ミニバー・ドリンク',icon:'🥤',q:[
+ {id:'water',l:'水(無料/有料・本数)',t:'t'},
+ {id:'coffee',l:'コーヒー・お茶',t:'t'},
+ {id:'fridge',l:'冷蔵庫の中身',t:'t'},
+ {id:'sweets',l:'お菓子・スナック',t:'t'},
+ {id:'td_t',l:'ターンダウンの有無',t:'c',o:['あり','なし','要望制']},
+ {id:'td_q',l:'ターンダウンの内容',t:'l'}]},
+{id:'bf',name:'朝食',icon:'🍳',q:[
+ {id:'bf_place',l:'会場',t:'t'},
+ {id:'bf_time',l:'営業時間',t:'t',f:1},
+ {id:'bf_price',l:'料金',t:'n',u:'円',f:1},
+ {id:'bf_style',l:'形式',t:'c',o:['ブッフェ','セット','アラカルト','ルームサービス']},
+ {id:'bf_visit',l:'訪問時刻',t:'t'},
+ {id:'bf_cong',l:'混雑・待ち時間',t:'t'},
+ {id:'bf_seat',l:'席・雰囲気',t:'t'},
+ {id:'bf_best',l:'一番美味しかったもの',t:'l'},
+ {id:'bf_bad',l:'残念だった点',t:'l'},
+ {id:'bf_local',l:'ご当地メニュー',t:'t'}]},
+{id:'dine',name:'ラウンジ・レストラン',icon:'🍸',q:[
+ {id:'lg',l:'ラウンジの利用有無',t:'c',o:['利用した','対象外','混雑で断念']},
+ {id:'lg_time',l:'ラウンジ営業時間・タイムテーブル',t:'l',f:1},
+ {id:'lg_food',l:'ラウンジの料理・ドリンク',t:'l'},
+ {id:'lg_cong',l:'ラウンジの混雑状況',t:'t'},
+ {id:'din_n',l:'レストラン・ディナーの感想',t:'l'},
+ {id:'din_dress',l:'ドレスコード',t:'t',f:1},
+ {id:'din_price',l:'ディナー価格(目安)',t:'n',u:'円',f:1},
+ {id:'din_rsv',l:'予約の要否',t:'t',f:1},
+ {id:'din_m',l:'印象に残った一品',t:'l'}]},
+{id:'well',name:'施設・ウェルネス',icon:'🏊',q:[
+ {id:'pool',l:'プール・大浴場・スパ営業時間',t:'t',f:1},
+ {id:'pool_rsv',l:'予約制?',t:'t'},
+ {id:'pool_ng',l:'利用制限',t:'m',o:['タトゥーNG','年齢制限','水着必須','宿泊者のみ']},
+ {id:'pool_t',l:'水温',t:'n',u:'℃'},
+ {id:'pool_c',l:'混雑度',t:'c',o:['貸切','空いてた','普通','混んでた']},
+ {id:'gym',l:'ジム設備',t:'m',o:['マシン','フリーウェイト','ヨガ','24h','無料']},
+ {id:'sauna',l:'サウナ・水風呂',t:'t'},
+ {id:'well_n',l:'その他施設メモ',t:'l'}]},
+{id:'near',name:'周辺・立地',icon:'🗺️',q:[
+ {id:'n_shop',l:'近くのコンビニ・スーパー',t:'t'},
+ {id:'n_spot',l:'周辺の観光スポット',t:'l',f:1},
+ {id:'n_gift',l:'ホテル内ショップ・お土産',t:'t'},
+ {id:'n_noise',l:'周辺の騒音・治安',t:'t'}]},
+{id:'sum',name:'総評',icon:'⭐',q:[
+ {id:'good',l:'良かった点 ベスト3',t:'l'},
+ {id:'bad',l:'惜しかった点',t:'l'},
+ {id:'who',l:'おすすめの人',t:'t'},
+ {id:'repeat',l:'リピートしたい?',t:'c',o:['ぜひ','機会があれば','微妙','もう泊まらない']},
+ {id:'bring',l:'持っていくと良いもの',t:'t'}]}
+];
+// ===== state =====
+const KEY='hotelmemo.v1';
+let D;try{D=JSON.parse(localStorage.getItem(KEY))}catch(e){}
+if(!D||!Array.isArray(D.stays))D={stays:[]};
+let view='list',cur=null,opened={};
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let st;function save(){clearTimeout(st);st=setTimeout(()=>{try{localStorage.setItem(KEY,JSON.stringify(D))}catch(e){toast('保存に失敗しました')}},200)}
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');setTimeout(()=>t.classList.remove('on'),1800)}
+const S=()=>D.stays.find(s=>s.id===cur);
+function ans(s,q){return s.a[q]||(s.a[q]={v:'',ai:false})}
+function nonEmpty(v){return Array.isArray(v)?v.length>0:String(v==null?'':v).trim()!==''}
+function filled(a){return a&&!a.ai&&nonEmpty(a.v)}
+function fmt(q,a){const v=a.v;let s=Array.isArray(v)?v.join('、'):String(v).trim();if(q.t==='n'&&q.u)s+=q.u;return s}
+// ===== views =====
+function setHead(t,back,act){$('#ht').textContent=t;const b=$('#hb'),a=$('#ha');b.style.display=back?'':'none';b.onclick=back||null;a.style.display=act?'':'none';if(act){a.textContent=act[0];a.onclick=act[1]}}
+function render(){
+ window.scrollTo(0,0);
+ if(view==='list')rList();else if(view==='new')rNew();else if(view==='stay')rStay();else rExport();
+}
+function goto(v,id){view=v;if(id)cur=id;render()}
+function rList(){
+ setHead('宿泊メモ',null,['＋新規',()=>goto('new')]);
+ const h=D.stays.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')||b.id-a.id).map(s=>{
+  let n=0,ai=0,tot=0;CATS.forEach(c=>c.q.forEach(q=>{tot++;const a=s.a[q.id];if(filled(a))n++;else if(a&&a.ai)ai++}));
+  return `<div class="card stay" data-open="${s.id}"><b>${esc(s.hotel)}</b><div class="sub">${esc(s.date||'日付未設定')} ・ ${esc(s.room||s.booked||'部屋未入力')}</div><div class="sub">記入 ${n}/${tot} ・ 🤖AI依頼 ${ai}</div></div>`}).join('');
+ $('#app').innerHTML=(h||'<div class="card sub">まだ宿泊記録がありません。右上の「＋新規」から始めましょう。</div>')+
+ '<div class="note">データはこの端末のブラウザ内にのみ保存されます。大事な記録は「書き出し」でバックアップしてください。</div>';
+}
+function rNew(){
+ setHead('新しい宿泊',()=>goto('list'));
+ const today=new Date();today.setMinutes(today.getMinutes()-today.getTimezoneOffset());
+ $('#app').innerHTML=`<div class="card">
+ <label>ホテル名(必須)</label><input type="text" id="nh" placeholder="例:○○マリオット ホテル">
+ <label>予約した部屋タイプ</label><input type="text" id="nb" placeholder="例:デラックスツイン">
+ <div class="note">部屋タイプの候補は、記事作成時にClaude Codeへ調べてもらう想定です(下のAI依頼で対応)。</div>
+ <label>宿泊日</label><input type="date" id="nd" value="${today.toISOString().slice(0,10)}">
+ <button class="btn" id="ncreate">記録を始める</button></div>`;
+ $('#ncreate').onclick=()=>{
+  const hotel=$('#nh').value.trim();if(!hotel){toast('ホテル名を入力してください');return}
+  const s={id:Date.now(),hotel,booked:$('#nb').value.trim(),room:'',date:$('#nd').value,a:{}};
+  D.stays.push(s);save();cur=s.id;opened={};goto('stay');
+ };
+}
+function qHTML(s,q){
+ const a=ans(s,q.id),v=a.v;let inp='';
+ if(q.t==='t')inp=`<input type="text" data-q="${q.id}" value="${esc(v)}">`;
+ else if(q.t==='l')inp=`<textarea data-q="${q.id}">${esc(v)}</textarea>`;
+ else if(q.t==='n')inp=`<div class="unit"><input type="number" inputmode="decimal" data-q="${q.id}" value="${esc(v)}"><span>${esc(q.u||'')}</span></div>`;
+ else if(q.t==='c')inp=`<div class="chips">${q.o.map(o=>`<button type="button" class="chip${v===o?' on':''}" data-chip="${q.id}" data-val="${esc(o)}">${esc(o)}</button>`).join('')}</div><input type="text" data-q="${q.id}" placeholder="自由入力" value="${esc(v)}">`;
+ else if(q.t==='m'){const arr=Array.isArray(v)?v:[];inp=`<div class="chips">${q.o.map(o=>`<button type="button" class="chip${arr.includes(o)?' on':''}" data-mchip="${q.id}" data-val="${esc(o)}">${esc(o)}</button>`).join('')}</div>`}
+ return `<div class="q${a.ai?' ai':''}" id="q-${q.id}"><div class="ql"><span>${esc(q.l)}${q.f?'<span class="star">★事実</span>':''}</span><button type="button" class="aib" data-ai="${q.id}">🤖 AIに任せる</button></div><div class="inp">${inp}</div></div>`;
+}
+function cnt(s,c){let n=0,ai=0;c.q.forEach(q=>{const a=s.a[q.id];if(filled(a))n++;else if(a&&a.ai)ai++});return `${n}/${c.q.length}${ai?' ・🤖'+ai:''}`}
+function rStay(){
+ const s=S();setHead(s.hotel,()=>goto('list'),['書き出し',()=>goto('export')]);
+ $('#app').innerHTML=`<div class="card">
+ <label>ホテル名</label><input type="text" data-meta="hotel" value="${esc(s.hotel)}">
+ <label>予約した部屋</label><input type="text" data-meta="booked" value="${esc(s.booked)}">
+ <label>実際の部屋(アップグレード後など)</label><input type="text" data-meta="room" value="${esc(s.room)}">
+ <label>宿泊日</label><input type="date" data-meta="date" value="${esc(s.date)}"></div>`+
+ CATS.map(c=>`<details data-cat="${c.id}"${opened[c.id]?' open':''}><summary><span>${c.icon} ${esc(c.name)}</span><span class="cnt" id="cnt-${c.id}">${cnt(s,c)}</span></summary><div class="body">${c.q.map(q=>qHTML(s,q)).join('')}<button class="btn sec" data-allai="${c.id}">🤖 未記入をすべてAIに任せる</button></div></details>`).join('')+
+ `<button class="btn acc" id="gexp">Markdownで書き出し</button><button class="btn danger" id="gdel">この宿泊を削除</button>`;
+ $('#gexp').onclick=()=>goto('export');
+ $('#gdel').onclick=()=>{if(confirm('この宿泊記録を削除しますか?(元に戻せません)')){D.stays=D.stays.filter(x=>x.id!==cur);save();goto('list')}};
+}
+function refreshQ(q){const s=S();const el=$('#q-'+q.id);if(el){el.outerHTML=qHTML(s,q)}updCount()}
+function updCount(){const s=S();CATS.forEach(c=>{const e=$('#cnt-'+c.id);if(e)e.textContent=cnt(s,c)})}
+const QM={};CATS.forEach(c=>c.q.forEach(q=>QM[q.id]=q));
+// ===== events =====
+document.addEventListener('click',e=>{
+ const t=e.target.closest('[data-open],[data-chip],[data-mchip],[data-ai],[data-allai]');if(!t)return;
+ if(t.dataset.open){cur=+t.dataset.open;opened={};goto('stay');return}
+ const s=S();if(!s)return;
+ if(t.dataset.chip){const q=QM[t.dataset.chip],a=ans(s,q.id);a.v=a.v===t.dataset.val?'':t.dataset.val;a.ai=false;save();refreshQ(q)}
+ else if(t.dataset.mchip){const q=QM[t.dataset.mchip],a=ans(s,q.id);const arr=Array.isArray(a.v)?a.v:[];const i=arr.indexOf(t.dataset.val);i>=0?arr.splice(i,1):arr.push(t.dataset.val);a.v=arr;a.ai=false;save();refreshQ(q)}
+ else if(t.dataset.ai){const q=QM[t.dataset.ai],a=ans(s,q.id);a.ai=!a.ai;save();refreshQ(q)}
+ else if(t.dataset.allai){const c=CATS.find(x=>x.id===t.dataset.allai);c.q.forEach(q=>{const a=ans(s,q.id);if(!nonEmpty(a.v))a.ai=true;});save();c.q.forEach(q=>refreshQ(q));toast('未記入をAI依頼にしました')}
+});
+document.addEventListener('input',e=>{
+ const s=S();if(!s)return;const t=e.target;
+ if(t.dataset.meta){s[t.dataset.meta]=t.value;save();if(t.dataset.meta==='hotel')$('#ht').textContent=t.value||'宿泊メモ';return}
+ if(t.dataset.q){const a=ans(s,t.dataset.q);a.v=t.value;if(a.ai&&nonEmpty(t.value)){a.ai=false;const el=$('#q-'+t.dataset.q);if(el)el.classList.remove('ai');}save();updCount()}
+});
+document.addEventListener('toggle',e=>{const d=e.target;if(d.dataset&&d.dataset.cat)opened[d.dataset.cat]=d.open},true);
+// ===== export =====
+function toMD(s){
+ const L=[];const hotel=s.hotel||'(ホテル名未入力)';
+ L.push(`# ${hotel} 宿泊メモ`,'');
+ L.push(`- 宿泊日: ${s.date||'未入力'}`);
+ L.push(`- 予約した部屋: ${s.booked||'未入力'}`);
+ L.push(`- 実際の部屋: ${s.room||'(予約と同じ/未入力)'}`,'');
+ L.push('## 現地メモ(一次情報・本人が確認)','');
+ let any=false;
+ CATS.forEach(c=>{const rows=c.q.filter(q=>filled(s.a[q.id]));if(!rows.length)return;any=true;
+  L.push(`### ${c.icon} ${c.name}`);
+  rows.forEach(q=>{const t=fmt(q,s.a[q.id]).replace(/\n/g,'\n  ');L.push(`- ${q.l}: ${t}`)});L.push('')});
+ if(!any)L.push('(記入なし)','');
+ L.push('## AI調査依頼','');
+ L.push('以下は現地で確認できなかった/調べてほしい項目です。','');
+ let ai=false;
+ CATS.forEach(c=>{const rows=c.q.filter(q=>{const a=s.a[q.id];return a&&a.ai});if(!rows.length)return;ai=true;
+  L.push(`### ${c.icon} ${c.name}`);rows.forEach(q=>L.push(`- [ ] ${q.l}`));L.push('')});
+ if(!ai)L.push('(依頼なし)','');
+ L.push('---','','## 記事作成時のClaude Codeへの指示','');
+ L.push('- 「現地メモ」は筆者本人が現地で確認した一次情報として最優先で扱うこと。');
+ L.push('- 「AI調査依頼」の各項目は、公式サイト等をWeb検索して調べること。');
+ L.push('- 調べた内容は「AI補足」と明記し、出典URLと確認日を添えること。');
+ L.push('- 情報は「〇年〇月時点」と時点を明記し、確認できなかった項目は「未確認」とすること。');
+ L.push('- 現地メモとWeb情報が食い違う場合は現地メモを優先し、食い違いを注記すること。','');
+ return L.join('\n');
+}
+function fname(s){return (s.hotel||'hotel').replace(/[\\/:*?"<>|\s]+/g,'_')+'_'+(s.date||'')+'.md'}
+function rExport(){
+ const s=S();setHead('書き出し',()=>goto('stay'));
+ const md=toMD(s);
+ $('#app').innerHTML=`<button class="btn" id="xs">📤 共有(Quick Share / AirDrop)</button><button class="btn sec" id="xc">📋 コピー</button><button class="btn sec" id="xd">⬇ .mdファイルを保存</button><div class="note">共有ボタンで近くのデバイスやアプリへ送れます。</div><pre id="xp">${esc(md)}</pre>`;
+ $('#xc').onclick=async()=>{try{await navigator.clipboard.writeText(md);toast('コピーしました')}catch(e){toast('コピーに失敗しました')}};
+ const dl=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([md],{type:'text/markdown'}));a.download=fname(s);document.body.appendChild(a);a.click();a.remove();toast('保存しました')};
+ $('#xd').onclick=dl;
+ $('#xs').onclick=async()=>{
+  try{
+   const f=new File([md],fname(s),{type:'text/plain'});
+   if(navigator.canShare&&navigator.canShare({files:[f]}))await navigator.share({files:[f],title:s.hotel+' 宿泊メモ'});
+   else if(navigator.share)await navigator.share({title:s.hotel+' 宿泊メモ',text:md});
+   else dl();
+  }catch(e){if(e.name!=='AbortError')dl()}
+ };
+}
+render();
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
+</script>
+</body>
+</html>
