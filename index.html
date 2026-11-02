@@ -44,6 +44,15 @@ pre{white-space:pre-wrap;word-break:break-all;background:#fff;border:1px solid v
 .toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:20px;font-size:14px;z-index:9;opacity:0;transition:.3s;pointer-events:none}
 .toast.on{opacity:.92}
 .note{font-size:12px;color:var(--sub);margin-top:4px}
+.pe{border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0;background:#fbfaf6}
+.pe .ph{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--sub);margin-bottom:4px}
+.pe .x{border:0;background:none;color:#b33;font-size:14px;padding:4px 8px}
+.pe input,.pe textarea{margin:3px 0}
+.pe textarea{min-height:56px}
+.pe .row{display:flex;gap:6px}.pe .row>*{flex:1}
+.pe .ptb{border:1px solid var(--line);background:#fff;border-radius:16px;padding:5px 10px;font-size:12px;color:var(--sub);margin-top:4px}
+.pe .ptb.on{background:var(--ai);border-color:var(--ai);color:#fff}
+.padd{width:100%;border:1px dashed var(--main);background:#fff;color:var(--main);border-radius:10px;padding:10px;font-size:15px}
 </style>
 </head>
 <body>
@@ -100,7 +109,9 @@ const CATS=[
  {id:'fridge',l:'冷蔵庫の中身',t:'t'},
  {id:'sweets',l:'お菓子・スナック',t:'t'},
  {id:'td_t',l:'ターンダウンの有無',t:'c',o:['あり','なし','要望制']},
- {id:'td_q',l:'ターンダウンの内容',t:'l'}]},
+ {id:'td_q',l:'ターンダウンの内容',t:'l'},
+ {id:'bought',l:'部屋で楽しんだもの(購入品・ホテル内で買ったもの)',t:'l'},
+ {id:'stylei',l:'お部屋での過ごし方・そのホテルらしい楽しみ方',t:'l'}]},
 {id:'bf',name:'朝食',icon:'🍳',q:[
  {id:'bf_place',l:'会場',t:'t'},
  {id:'bf_time',l:'営業時間',t:'t',f:1},
@@ -112,6 +123,10 @@ const CATS=[
  {id:'bf_best',l:'一番美味しかったもの',t:'l'},
  {id:'bf_bad',l:'残念だった点',t:'l'},
  {id:'bf_local',l:'ご当地メニュー',t:'t'}]},
+{id:'eat',name:'ホテル外の食事・買い物',icon:'🍽️',q:[
+ {id:'eats',l:'訪れた飲食店(ランチ・夕食・朝食調達など複数)',t:'p',k:'food'},
+ {id:'shops',l:'立ち寄った買い物先・道の駅・お土産(複数)',t:'p',k:'spot'},
+ {id:'eat_p',l:'予定と実際のズレ・予約のコツ(満席など)',t:'l'}]},
 {id:'dine',name:'ラウンジ・レストラン',icon:'🍸',q:[
  {id:'lg',l:'ラウンジの利用有無',t:'c',o:['利用した','対象外','混雑で断念']},
  {id:'lg_time',l:'ラウンジ営業時間・タイムテーブル',t:'l',f:1},
@@ -133,7 +148,8 @@ const CATS=[
  {id:'well_n',l:'その他施設メモ',t:'l'}]},
 {id:'near',name:'周辺・立地',icon:'🗺️',q:[
  {id:'n_shop',l:'近くのコンビニ・スーパー',t:'t'},
- {id:'n_spot',l:'周辺の観光スポット',t:'l',f:1},
+ {id:'spots',l:'訪れた観光地・スポット(複数)',t:'p',k:'spot'},
+ {id:'n_spot',l:'周辺の観光スポット(公式情報など・AI補足向け)',t:'l',f:1},
  {id:'n_gift',l:'ホテル内ショップ・お土産',t:'t'},
  {id:'n_noise',l:'周辺の騒音・治安',t:'t'}]},
 {id:'sum',name:'総評',icon:'⭐',q:[
@@ -151,12 +167,24 @@ let view='list',cur=null,opened={};
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let st;function save(){clearTimeout(st);st=setTimeout(()=>{try{localStorage.setItem(KEY,JSON.stringify(D))}catch(e){toast('保存に失敗しました')}},200)}
+function flush(){try{localStorage.setItem(KEY,JSON.stringify(D))}catch(e){}}
+addEventListener('pagehide',flush);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flush()});
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');setTimeout(()=>t.classList.remove('on'),1800)}
 const S=()=>D.stays.find(s=>s.id===cur);
 function ans(s,q){return s.a[q]||(s.a[q]={v:'',ai:false})}
-function nonEmpty(v){return Array.isArray(v)?v.length>0:String(v==null?'':v).trim()!==''}
+function nonEmpty(v){if(Array.isArray(v)){if(v.length&&typeof v[0]==='object')return v.some(e=>peOk(e));return v.length>0}return String(v==null?'':v).trim()!==''}
+function peOk(e){return e&&((e.n||'').trim()||(e.m||'').trim()||(e.w||'').trim())}
+const FT=['ランチ','ディナー','朝食','カフェ・軽食','テイクアウト','その他'],RC=['◎おすすめ','○良い','△微妙'];
+const WL={food:'注文したもの',spot:'体験したこと/購入したもの'};
+function peLines(q,v){const out=[];v.filter(peOk).forEach((e,i)=>{
+ const head=[e.tp,e.n||'(名称未入力)'].filter(Boolean);let t=e.t?e.t:(e.ph?'':'');
+ out.push(`  ${i+1}. **${head.join(' / ')}**`+(e.r?`(${e.r})`:''));
+ if(e.t||e.ph)out.push(`     - 訪問時刻: ${e.t||''}${e.ph?(e.t?' ':'')+'【写真の撮影時刻から確認してほしい】':''}`);
+ if(e.w)out.push(`     - ${WL[q.k]}: ${e.w.replace(/\n/g,' ')}`);
+ if(e.m)out.push(`     - 感想: ${e.m.replace(/\n/g,' ')}`);
+ if(e.tip)out.push(`     - 注意・Tips: ${e.tip.replace(/\n/g,' ')}`)});return out}
 function filled(a){return a&&!a.ai&&nonEmpty(a.v)}
-function fmt(q,a){const v=a.v;let s=Array.isArray(v)?v.join('、'):String(v).trim();if(q.t==='n'&&q.u)s+=q.u;return s}
+function fmt(q,a){const v=a.v;if(q.t==='p')return '';let s=Array.isArray(v)?v.join('、'):String(v).trim();if(q.t==='n'&&q.u)s+=q.u;return s}
 // ===== views =====
 function setHead(t,back,act){$('#ht').textContent=t;const b=$('#hb'),a=$('#ha');b.style.display=back?'':'none';b.onclick=back||null;a.style.display=act?'':'none';if(act){a.textContent=act[0];a.onclick=act[1]}}
 function render(){
@@ -193,9 +221,21 @@ function qHTML(s,q){
  else if(q.t==='l')inp=`<textarea data-q="${q.id}">${esc(v)}</textarea>`;
  else if(q.t==='n')inp=`<div class="unit"><input type="number" inputmode="decimal" data-q="${q.id}" value="${esc(v)}"><span>${esc(q.u||'')}</span></div>`;
  else if(q.t==='c')inp=`<div class="chips">${q.o.map(o=>`<button type="button" class="chip${v===o?' on':''}" data-chip="${q.id}" data-val="${esc(o)}">${esc(o)}</button>`).join('')}</div><input type="text" data-q="${q.id}" placeholder="自由入力" value="${esc(v)}">`;
+ else if(q.t==='p'){const arr=Array.isArray(v)?v:[];inp=arr.map((e,i)=>peHTML(q,e,i)).join('')+`<button type="button" class="padd" data-padd="${q.id}">＋ ${q.k==='food'?'お店':'場所'}を追加</button>`}
  else if(q.t==='m'){const arr=Array.isArray(v)?v:[];inp=`<div class="chips">${q.o.map(o=>`<button type="button" class="chip${arr.includes(o)?' on':''}" data-mchip="${q.id}" data-val="${esc(o)}">${esc(o)}</button>`).join('')}</div>`}
  return `<div class="q${a.ai?' ai':''}" id="q-${q.id}"><div class="ql"><span>${esc(q.l)}${q.f?'<span class="star">★事実</span>':''}</span><button type="button" class="aib" data-ai="${q.id}">🤖 AIに任せる</button></div><div class="inp">${inp}</div></div>`;
 }
+function peHTML(q,e,i){const id=q.id;
+ const chips=(arr,f)=>`<div class="chips">${arr.map(o=>`<button type="button" class="chip${e[f]===o?' on':''}" data-pchip="${id}" data-i="${i}" data-f="${f}" data-val="${esc(o)}">${esc(o)}</button>`).join('')}</div>`;
+ const fi=(f,ph,tag)=>tag==='ta'?`<textarea data-pf="${id}" data-i="${i}" data-f="${f}" placeholder="${ph}">${esc(e[f])}</textarea>`:`<input type="text" data-pf="${id}" data-i="${i}" data-f="${f}" placeholder="${ph}" value="${esc(e[f])}">`;
+ return `<div class="pe"><div class="ph"><span>${i+1}件目</span><button type="button" class="x" data-pdel="${id}" data-i="${i}">✕ 削除</button></div>
+ ${q.k==='food'?chips(FT,'tp'):''}
+ ${fi('n',q.k==='food'?'店名':'場所の名前')}
+ <div class="row">${fi('t','訪問時刻(例 12:30頃)')}<button type="button" class="ptb${e.ph?' on':''}" data-ptime="${id}" data-i="${i}">🕒 時刻は写真から確認して</button></div>
+ ${fi('w',WL[q.k]+'(例:'+(q.k==='food'?'生姜焼き定食・ブリのお造り':'ソフトクリーム')+')','ta')}
+ ${fi('m','感想・見どころ','ta')}
+ ${fi('tip','注意・Tips(現金のみ/予約要/混雑 など)','ta')}
+ ${chips(RC,'r')}</div>`}
 function cnt(s,c){let n=0,ai=0;c.q.forEach(q=>{const a=s.a[q.id];if(filled(a))n++;else if(a&&a.ai)ai++});return `${n}/${c.q.length}${ai?' ・🤖'+ai:''}`}
 function rStay(){
  const s=S();setHead(s.hotel,()=>goto('list'),['書き出し',()=>goto('export')]);
@@ -214,17 +254,22 @@ function updCount(){const s=S();CATS.forEach(c=>{const e=$('#cnt-'+c.id);if(e)e.
 const QM={};CATS.forEach(c=>c.q.forEach(q=>QM[q.id]=q));
 // ===== events =====
 document.addEventListener('click',e=>{
- const t=e.target.closest('[data-open],[data-chip],[data-mchip],[data-ai],[data-allai]');if(!t)return;
+ const t=e.target.closest('[data-open],[data-chip],[data-mchip],[data-ai],[data-allai],[data-padd],[data-pdel],[data-pchip],[data-ptime]');if(!t)return;
  if(t.dataset.open){cur=+t.dataset.open;opened={};goto('stay');return}
  const s=S();if(!s)return;
  if(t.dataset.chip){const q=QM[t.dataset.chip],a=ans(s,q.id);a.v=a.v===t.dataset.val?'':t.dataset.val;a.ai=false;save();refreshQ(q)}
  else if(t.dataset.mchip){const q=QM[t.dataset.mchip],a=ans(s,q.id);const arr=Array.isArray(a.v)?a.v:[];const i=arr.indexOf(t.dataset.val);i>=0?arr.splice(i,1):arr.push(t.dataset.val);a.v=arr;a.ai=false;save();refreshQ(q)}
+ else if(t.dataset.padd){const q=QM[t.dataset.padd],a=ans(s,q.id);if(!Array.isArray(a.v))a.v=[];a.v.push({n:'',t:'',w:'',m:'',tip:'',tp:'',r:'',ph:false});a.ai=false;save();refreshQ(q);const ns=document.querySelectorAll('#q-'+q.id+' .pe');const last=ns[ns.length-1];if(last){const f=last.querySelector('input[data-f=n]');if(f)f.focus()}}
+ else if(t.dataset.pdel){const q=QM[t.dataset.pdel],a=ans(s,q.id);if(confirm('この項目を削除しますか?')){a.v.splice(+t.dataset.i,1);save();refreshQ(q)}}
+ else if(t.dataset.pchip){const q=QM[t.dataset.pchip],a=ans(s,q.id),e=a.v[+t.dataset.i],f=t.dataset.f;e[f]=e[f]===t.dataset.val?'':t.dataset.val;a.ai=false;save();refreshQ(q)}
+ else if(t.dataset.ptime){const q=QM[t.dataset.ptime],a=ans(s,q.id),e=a.v[+t.dataset.i];e.ph=!e.ph;save();refreshQ(q)}
  else if(t.dataset.ai){const q=QM[t.dataset.ai],a=ans(s,q.id);a.ai=!a.ai;save();refreshQ(q)}
  else if(t.dataset.allai){const c=CATS.find(x=>x.id===t.dataset.allai);c.q.forEach(q=>{const a=ans(s,q.id);if(!nonEmpty(a.v))a.ai=true;});save();c.q.forEach(q=>refreshQ(q));toast('未記入をAI依頼にしました')}
 });
 document.addEventListener('input',e=>{
  const s=S();if(!s)return;const t=e.target;
  if(t.dataset.meta){s[t.dataset.meta]=t.value;save();if(t.dataset.meta==='hotel')$('#ht').textContent=t.value||'宿泊メモ';return}
+ if(t.dataset.pf){const a=ans(s,t.dataset.pf);a.v[+t.dataset.i][t.dataset.f]=t.value;if(a.ai){a.ai=false;const el=$('#q-'+t.dataset.pf);if(el)el.classList.remove('ai')}save();updCount();return}
  if(t.dataset.q){const a=ans(s,t.dataset.q);a.v=t.value;if(a.ai&&nonEmpty(t.value)){a.ai=false;const el=$('#q-'+t.dataset.q);if(el)el.classList.remove('ai');}save();updCount()}
 });
 document.addEventListener('toggle',e=>{const d=e.target;if(d.dataset&&d.dataset.cat)opened[d.dataset.cat]=d.open},true);
@@ -239,7 +284,7 @@ function toMD(s){
  let any=false;
  CATS.forEach(c=>{const rows=c.q.filter(q=>filled(s.a[q.id]));if(!rows.length)return;any=true;
   L.push(`### ${c.icon} ${c.name}`);
-  rows.forEach(q=>{const t=fmt(q,s.a[q.id]).replace(/\n/g,'\n  ');L.push(`- ${q.l}: ${t}`)});L.push('')});
+  rows.forEach(q=>{const a=s.a[q.id];if(q.t==='p'){L.push(`- ${q.l}:`);peLines(q,a.v).forEach(x=>L.push(x));return}const t=fmt(q,a).replace(/\n/g,'\n  ');L.push(`- ${q.l}: ${t}`)});L.push('')});
  if(!any)L.push('(記入なし)','');
  L.push('## AI調査依頼','');
  L.push('以下は現地で確認できなかった/調べてほしい項目です。','');
@@ -252,7 +297,9 @@ function toMD(s){
  L.push('- 「AI調査依頼」の各項目は、公式サイト等をWeb検索して調べること。');
  L.push('- 調べた内容は「AI補足」と明記し、出典URLと確認日を添えること。');
  L.push('- 情報は「〇年〇月時点」と時点を明記し、確認できなかった項目は「未確認」とすること。');
- L.push('- 現地メモとWeb情報が食い違う場合は現地メモを優先し、食い違いを注記すること。','');
+ L.push('- 現地メモとWeb情報が食い違う場合は現地メモを優先し、食い違いを注記すること。');
+ L.push('- 訪問時刻が「写真の撮影時刻から確認してほしい」の項目は、筆者が渡す写真のEXIF撮影時刻から時刻を補完すること。');
+ L.push('- 訪れた場所・飲食店は複数あるため、記事では時系列に並べ、各店の「注意・Tips」は読者向け情報として目立たせること。','');
  return L.join('\n');
 }
 function fname(s){return (s.hotel||'hotel').replace(/[\\/:*?"<>|\s]+/g,'_')+'_'+(s.date||'')+'.md'}
