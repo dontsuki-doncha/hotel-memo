@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#1f3a5f">
+<meta name="theme-color" content="#a8472f">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <title>宿泊メモ</title>
@@ -53,11 +53,45 @@ pre{white-space:pre-wrap;word-break:break-all;background:#fff;border:1px solid v
 .pe .ptb{border:1px solid var(--line);background:#fff;border-radius:16px;padding:5px 10px;font-size:12px;color:var(--sub);margin-top:4px}
 .pe .ptb.on{background:var(--ai);border-color:var(--ai);color:#fff}
 .padd{width:100%;border:1px dashed var(--main);background:#fff;color:var(--main);border-radius:10px;padding:10px;font-size:15px}
+
+/* ===== 旅ノート風テーマ ===== */
+:root{--main:#a8472f;--ai:#6b4fbb;--acc:#e0a526;--bg:#f1e7d0;--card:#fffdf6;--tx:#3b2f2a;--sub:#7d6b5d;--line:#e0d2b4}
+[hidden]{display:none!important}
+body{background-color:var(--bg);background-image:repeating-linear-gradient(transparent 0 31px,rgba(150,120,70,.13) 31px 32px);background-attachment:local;font-family:"Hiragino Maru Gothic ProN","BIZ UDPGothic","Noto Sans JP",system-ui,sans-serif}
+header{border-bottom:3px dashed rgba(255,255,255,.55);box-shadow:0 2px 0 var(--main)}
+.card,details{border-radius:6px;box-shadow:2px 3px 0 rgba(120,90,50,.15)}
+.tape{display:inline-block;background:rgba(224,165,38,.6);padding:3px 14px;transform:rotate(-1.5deg);font-size:15px;margin:16px 0 8px;font-weight:bold;box-shadow:0 1px 0 rgba(0,0,0,.08)}
+.qk{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0 4px}
+.qk button{border:2px solid var(--main);background:var(--card);color:var(--main);border-radius:14px;padding:10px 2px;font-size:12px;font-weight:bold;box-shadow:2px 3px 0 var(--main);font-family:inherit}
+.qk button b{display:block;font-size:26px;line-height:1.3}
+.qk button:active{transform:translate(2px,3px);box-shadow:none}
+.lg{display:flex;gap:8px;align-items:flex-start;background:var(--card);border:1px solid var(--line);border-left:5px solid var(--acc);border-radius:6px;padding:8px 10px;margin-bottom:6px}
+.lg .lk{font-size:20px}.lg .lb{flex:1;white-space:pre-wrap;word-break:break-word;font-size:15px}
+.lg .lt{display:inline-block;background:var(--acc);border-radius:10px;padding:0 8px;font-size:12px;margin-right:6px}
+.lg .x{border:0;background:none;color:#b33;padding:2px 6px;font-size:14px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
+.gc{position:relative;text-align:left;background:var(--card);border:1px solid var(--line);border-left:6px solid var(--c);border-radius:6px;padding:10px;box-shadow:2px 3px 0 rgba(120,90,50,.15);font-family:inherit;color:var(--tx);font-size:14px}
+.gc .ic{font-size:28px;display:block}.gc b{display:block;font-size:14px;margin:2px 0}
+.bar{height:8px;background:#eadfc6;border-radius:4px;overflow:hidden;display:flex;margin-top:6px}
+.bar i{display:block;height:100%;background:var(--c)}.bar i.a{background:var(--ai)}
+.stamp{position:absolute;right:6px;top:6px;border:2px solid #c0392b;color:#c0392b;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:bold;transform:rotate(-14deg);opacity:.85}
+.srch{margin:6px 0}
+.sch{margin:8px 0 4px}
+.lh{font-size:13px;font-weight:bold;margin:12px 0 2px;color:var(--main)}
+#sheet{position:fixed;inset:0;background:rgba(40,30,20,.45);z-index:20;display:flex;align-items:flex-end}
+.sh{background:var(--card);width:100%;max-width:640px;margin:0 auto;border-radius:16px 16px 0 0;padding:14px 14px calc(14px + env(safe-area-inset-bottom))}
+.sh textarea{min-height:100px;margin-bottom:6px}
+.row2{display:flex;gap:8px}.row2 .btn{flex:1}
+.btn{box-shadow:2px 3px 0 rgba(0,0,0,.2)}
+.btn.sec{background:var(--card)}
+.btn.acc{color:#3b2f2a}
+.empty{color:var(--sub);font-size:13px;padding:8px 0}
 </style>
 </head>
 <body>
 <header><button id="hb" style="display:none">←</button><h1 id="ht">宿泊メモ</h1><button id="ha" style="display:none"></button></header>
 <main id="app"></main>
+<div id="sheet" hidden></div>
 <div class="toast" id="toast"></div>
 <script>
 // ===== 質問カテゴリ (ここを編集すればカスタマイズできます) =====
@@ -163,7 +197,7 @@ const CATS=[
 const KEY='hotelmemo.v1';
 let D;try{D=JSON.parse(localStorage.getItem(KEY))}catch(e){}
 if(!D||!Array.isArray(D.stays))D={stays:[]};
-let view='list',cur=null,opened={};
+let view='list',cur=null,opened={},curCat=null,scene=-1,sheet=null;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let st;function save(){clearTimeout(st);st=setTimeout(()=>{try{localStorage.setItem(KEY,JSON.stringify(D))}catch(e){toast('保存に失敗しました')}},200)}
@@ -189,7 +223,7 @@ function fmt(q,a){const v=a.v;if(q.t==='p')return '';let s=Array.isArray(v)?v.jo
 function setHead(t,back,act){$('#ht').textContent=t;const b=$('#hb'),a=$('#ha');b.style.display=back?'':'none';b.onclick=back||null;a.style.display=act?'':'none';if(act){a.textContent=act[0];a.onclick=act[1]}}
 function render(){
  window.scrollTo(0,0);
- if(view==='list')rList();else if(view==='new')rNew();else if(view==='stay')rStay();else rExport();
+ if(view==='list')rList();else if(view==='new')rNew();else if(view==='stay')rStay();else if(view==='cat')rCat();else rExport();
 }
 function goto(v,id){view=v;if(id)cur=id;render()}
 function rList(){
@@ -197,7 +231,7 @@ function rList(){
  const h=D.stays.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')||b.id-a.id).map(s=>{
   let n=0,ai=0,tot=0;CATS.forEach(c=>c.q.forEach(q=>{tot++;const a=s.a[q.id];if(filled(a))n++;else if(a&&a.ai)ai++}));
   return `<div class="card stay" data-open="${s.id}"><b>${esc(s.hotel)}</b><div class="sub">${esc(s.date||'日付未設定')} ・ ${esc(s.room||s.booked||'部屋未入力')}</div><div class="sub">記入 ${n}/${tot} ・ 🤖AI依頼 ${ai}</div></div>`}).join('');
- $('#app').innerHTML=(h||'<div class="card sub">まだ宿泊記録がありません。右上の「＋新規」から始めましょう。</div>')+
+ $('#app').innerHTML=(h||'<div class="card sub">📓 まだ宿泊記録がありません。右上の「＋新規」から旅を始めましょう。</div>')+
  '<div class="note">データはこの端末のブラウザ内にのみ保存されます。大事な記録は「書き出し」でバックアップしてください。</div>';
 }
 function rNew(){
@@ -211,7 +245,7 @@ function rNew(){
  <button class="btn" id="ncreate">記録を始める</button></div>`;
  $('#ncreate').onclick=()=>{
   const hotel=$('#nh').value.trim();if(!hotel){toast('ホテル名を入力してください');return}
-  const s={id:Date.now(),hotel,booked:$('#nb').value.trim(),room:'',date:$('#nd').value,a:{}};
+  const s={id:Date.now(),hotel,booked:$('#nb').value.trim(),room:'',date:$('#nd').value,a:{},log:[]};
   D.stays.push(s);save();cur=s.id;opened={};goto('stay');
  };
 }
@@ -237,26 +271,73 @@ function peHTML(q,e,i){const id=q.id;
  ${fi('tip','注意・Tips(現金のみ/予約要/混雑 など)','ta')}
  ${chips(RC,'r')}</div>`}
 function cnt(s,c){let n=0,ai=0;c.q.forEach(q=>{const a=s.a[q.id];if(filled(a))n++;else if(a&&a.ai)ai++});return `${n}/${c.q.length}${ai?' ・🤖'+ai:''}`}
+const CC={book:'#e07a5f',acc:'#3d85a8',room:'#81a35b',bath:'#5b9bd5',mini:'#d98cb3',bf:'#e0a526',eat:'#cf6a3d',dine:'#8e5ea2',well:'#2fa39a',near:'#7aa05a',sum:'#c9a24b'};
+const KINDS=[['m','✏️','一言'],['f','🍽️','食事'],['p','📍','場所'],['i','💡','気づき']];
+const SC=[['🏨','チェックイン',['book','acc']],['🛏️','お部屋',['room','bath','mini']],['🍳','朝食',['bf']],['🍸','ラウンジ・夕食',['dine','eat']],['🏊','施設',['well']],['🗺️','観光・周辺',['near','eat']],['⭐','総評',['sum']]];
+function prog(s,c){let n=0,ai=0;c.q.forEach(q=>{const a=s.a[q.id];if(filled(a))n++;else if(a&&a.ai)ai++});return {n,ai,t:c.q.length}}
+function barH(p){return `<i style="width:${p.n/p.t*100}%"></i><i class="a" style="width:${p.ai/p.t*100}%"></i>`}
+function gridHTML(s){const sc=scene>=0?SC[scene][2]:null;return CATS.filter(c=>!sc||sc.includes(c.id)).map(c=>{const p=prog(s,c);return `<button type="button" class="gc" style="--c:${CC[c.id]||'#c9a24b'}" data-gcat="${c.id}">${p.n+p.ai===p.t?'<span class="stamp">済</span>':''}<span class="ic">${c.icon}</span><b>${esc(c.name)}</b><span class="sub" id="cnt-${c.id}">${cnt(s,c)}</span><div class="bar" id="bar-${c.id}">${barH(p)}</div></button>`}).join('')}
+function scenesHTML(){return `<button type="button" class="chip${scene<0?' on':''}" data-scene="-1">すべて</button>`+SC.map((x,i)=>`<button type="button" class="chip${scene===i?' on':''}" data-scene="${i}">${x[0]} ${esc(x[1])}</button>`).join('')}
+function logHTML(s){const L=(s.log||[]).slice().reverse();if(!L.length)return '<div class="empty">まだログがありません。上のボタンで、思いついたことをすぐ残せます。</div>';
+ return L.map(e=>{const k=KINDS.find(x=>x[0]===e.k)||KINDS[0];return `<div class="lg" data-ledit="${e.id}"><span class="lk">${k[1]}</span><div class="lb">${e.t?`<span class="lt">${esc(e.t)}</span>`:''}${esc(e.x)}</div><button type="button" class="x" data-ldel="${e.id}">✕</button></div>`}).join('')}
 function rStay(){
  const s=S();setHead(s.hotel,()=>goto('list'),['書き出し',()=>goto('export')]);
- $('#app').innerHTML=`<div class="card">
+ $('#app').innerHTML=`<details><summary><span>🏨 宿泊情報</span><span class="cnt">タップで編集</span></summary><div class="body">
  <label>ホテル名</label><input type="text" data-meta="hotel" value="${esc(s.hotel)}">
  <label>予約した部屋</label><input type="text" data-meta="booked" value="${esc(s.booked)}">
  <label>実際の部屋(アップグレード後など)</label><input type="text" data-meta="room" value="${esc(s.room)}">
- <label>宿泊日</label><input type="date" data-meta="date" value="${esc(s.date)}"></div>`+
- CATS.map(c=>`<details data-cat="${c.id}"${opened[c.id]?' open':''}><summary><span>${c.icon} ${esc(c.name)}</span><span class="cnt" id="cnt-${c.id}">${cnt(s,c)}</span></summary><div class="body">${c.q.map(q=>qHTML(s,q)).join('')}<button class="btn sec" data-allai="${c.id}">🤖 未記入をすべてAIに任せる</button></div></details>`).join('')+
- `<button class="btn acc" id="gexp">Markdownで書き出し</button><button class="btn danger" id="gdel">この宿泊を削除</button>`;
+ <label>宿泊日</label><input type="date" data-meta="date" value="${esc(s.date)}"></div></details>
+ <div class="qk">${KINDS.map(([c,ic,n])=>`<button type="button" data-quick="${c}"><b>${ic}</b>${n}</button>`).join('')}</div>
+ <span class="tape">📓 旅のログ</span><div id="loglist">${logHTML(s)}</div>
+ <span class="tape">🔍 項目を探す</span>
+ <input type="text" id="sq" class="srch" placeholder="キーワード(例:朝食、水圧、駐車場)">
+ <div class="chips sch" id="scenes">${scenesHTML()}</div>
+ <div id="sres" hidden></div>
+ <div class="grid" id="grid">${gridHTML(s)}</div>
+ <button class="btn acc" id="gexp">Markdownで書き出し</button><button class="btn danger" id="gdel">この宿泊を削除</button>`;
  $('#gexp').onclick=()=>goto('export');
  $('#gdel').onclick=()=>{if(confirm('この宿泊記録を削除しますか?(元に戻せません)')){D.stays=D.stays.filter(x=>x.id!==cur);save();goto('list')}};
 }
+function rCat(){
+ const s=S(),c=CATS.find(x=>x.id===curCat);setHead(c.icon+' '+c.name,()=>goto('stay'));
+ $('#app').innerHTML=`<div class="card" style="--c:${CC[c.id]||'#c9a24b'}"><span class="sub" id="cnt-${c.id}">${cnt(s,c)}</span><div class="bar" id="bar-${c.id}">${barH(prog(s,c))}</div></div><div class="card">${c.q.map(q=>qHTML(s,q)).join('')}<button class="btn sec" data-allai="${c.id}">🤖 未記入をすべてAIに任せる</button></div>`;
+}
+function doSearch(v){
+ const s=S(),q=v.trim().toLowerCase(),res=$('#sres'),g=$('#grid');
+ if(!q){res.hidden=true;g.hidden=false;$('#scenes').hidden=false;return}
+ $('#scenes').hidden=true;g.hidden=true;res.hidden=false;
+ let out='';CATS.forEach(c=>{const qs=c.q.filter(x=>x.l.toLowerCase().includes(q)||c.name.toLowerCase().includes(q));if(qs.length)out+=`<div class="lh">${c.icon} ${esc(c.name)}</div><div class="card">${qs.map(x=>qHTML(s,x)).join('')}</div>`});
+ res.innerHTML=out||'<div class="empty">該当する項目がありません。</div>';
+}
+function closeSheet(){sheet=null;$('#sheet').hidden=true;$('#sheet').innerHTML=''}
+function openSheet(k,id){
+ const s=S(),e=id?(s.log||[]).find(x=>x.id===id):null;sheet={id:id||null,k:e?e.k:k};
+ const sh=$('#sheet');sh.hidden=false;
+ sh.innerHTML=`<div class="sh"><div class="chips">${KINDS.map(([c,ic,n])=>`<button type="button" class="chip${c===sheet.k?' on':''}" data-lk="${c}">${ic} ${n}</button>`).join('')}</div><textarea id="lx" placeholder="思いついたことを一言… (キーボードのマイクで音声入力もできます)">${esc(e?e.x:'')}</textarea><input type="text" id="lt" placeholder="時刻(任意) 例:12:30頃" value="${esc(e?e.t:'')}"><div class="row2"><button type="button" class="btn sec" id="lc">キャンセル</button><button type="button" class="btn" id="ls">保存</button></div></div>`;
+ $('#lc').onclick=closeSheet;
+ $('#ls').onclick=()=>{
+  const x=$('#lx').value.trim();if(!x){toast('内容を入力してください');return}
+  const t=$('#lt').value.trim();s.log=s.log||[];
+  if(sheet.id){const en=s.log.find(y=>y.id===sheet.id);if(en){en.k=sheet.k;en.x=x;en.t=t}}
+  else s.log.push({id:Date.now(),k:sheet.k,x,t});
+  save();closeSheet();const l=$('#loglist');if(l)l.innerHTML=logHTML(s);toast('ログに追加しました 📓');
+ };
+ setTimeout(()=>{const x=$('#lx');if(x)x.focus()},60);
+}
 function refreshQ(q){const s=S();const el=$('#q-'+q.id);if(el){el.outerHTML=qHTML(s,q)}updCount()}
-function updCount(){const s=S();CATS.forEach(c=>{const e=$('#cnt-'+c.id);if(e)e.textContent=cnt(s,c)})}
+function updCount(){const s=S();CATS.forEach(c=>{const e=$('#cnt-'+c.id);if(e)e.textContent=cnt(s,c);const b=$('#bar-'+c.id);if(b)b.innerHTML=barH(prog(s,c))})}
 const QM={};CATS.forEach(c=>c.q.forEach(q=>QM[q.id]=q));
 // ===== events =====
 document.addEventListener('click',e=>{
- const t=e.target.closest('[data-open],[data-chip],[data-mchip],[data-ai],[data-allai],[data-padd],[data-pdel],[data-pchip],[data-ptime]');if(!t)return;
+ const t=e.target.closest('[data-open],[data-chip],[data-mchip],[data-ai],[data-allai],[data-padd],[data-pdel],[data-pchip],[data-ptime],[data-quick],[data-lk],[data-ledit],[data-ldel],[data-gcat],[data-scene]');if(!t)return;
  if(t.dataset.open){cur=+t.dataset.open;opened={};goto('stay');return}
  const s=S();if(!s)return;
+ if(t.dataset.quick){openSheet(t.dataset.quick);return}
+ if(t.dataset.lk){sheet.k=t.dataset.lk;document.querySelectorAll('[data-lk]').forEach(b=>b.classList.toggle('on',b.dataset.lk===sheet.k));return}
+ if(t.dataset.ldel){if(confirm('このログを削除しますか?')){s.log=(s.log||[]).filter(x=>x.id!==+t.dataset.ldel);save();$('#loglist').innerHTML=logHTML(s)}return}
+ if(t.dataset.ledit){openSheet(null,+t.dataset.ledit);return}
+ if(t.dataset.gcat){curCat=t.dataset.gcat;goto('cat');return}
+ if(t.dataset.scene){scene=+t.dataset.scene;$('#scenes').innerHTML=scenesHTML();$('#grid').innerHTML=gridHTML(s);return}
  if(t.dataset.chip){const q=QM[t.dataset.chip],a=ans(s,q.id);a.v=a.v===t.dataset.val?'':t.dataset.val;a.ai=false;save();refreshQ(q)}
  else if(t.dataset.mchip){const q=QM[t.dataset.mchip],a=ans(s,q.id);const arr=Array.isArray(a.v)?a.v:[];const i=arr.indexOf(t.dataset.val);i>=0?arr.splice(i,1):arr.push(t.dataset.val);a.v=arr;a.ai=false;save();refreshQ(q)}
  else if(t.dataset.padd){const q=QM[t.dataset.padd],a=ans(s,q.id);if(!Array.isArray(a.v))a.v=[];a.v.push({n:'',t:'',w:'',m:'',tip:'',tp:'',r:'',ph:false});a.ai=false;save();refreshQ(q);const ns=document.querySelectorAll('#q-'+q.id+' .pe');const last=ns[ns.length-1];if(last){const f=last.querySelector('input[data-f=n]');if(f)f.focus()}}
@@ -268,11 +349,12 @@ document.addEventListener('click',e=>{
 });
 document.addEventListener('input',e=>{
  const s=S();if(!s)return;const t=e.target;
+ if(t.id==='sq'){doSearch(t.value);return}
  if(t.dataset.meta){s[t.dataset.meta]=t.value;save();if(t.dataset.meta==='hotel')$('#ht').textContent=t.value||'宿泊メモ';return}
  if(t.dataset.pf){const a=ans(s,t.dataset.pf);a.v[+t.dataset.i][t.dataset.f]=t.value;if(a.ai){a.ai=false;const el=$('#q-'+t.dataset.pf);if(el)el.classList.remove('ai')}save();updCount();return}
  if(t.dataset.q){const a=ans(s,t.dataset.q);a.v=t.value;if(a.ai&&nonEmpty(t.value)){a.ai=false;const el=$('#q-'+t.dataset.q);if(el)el.classList.remove('ai');}save();updCount()}
 });
-document.addEventListener('toggle',e=>{const d=e.target;if(d.dataset&&d.dataset.cat)opened[d.dataset.cat]=d.open},true);
+document.addEventListener('click',e=>{if(e.target.id==='sheet')closeSheet()});
 // ===== export =====
 function toMD(s){
  const L=[];const hotel=s.hotel||'(ホテル名未入力)';
@@ -280,6 +362,7 @@ function toMD(s){
  L.push(`- 宿泊日: ${s.date||'未入力'}`);
  L.push(`- 予約した部屋: ${s.booked||'未入力'}`);
  L.push(`- 実際の部屋: ${s.room||'(予約と同じ/未入力)'}`,'');
+ if((s.log||[]).length){L.push('## 旅のログ(現地での一言メモ・入力順)','');s.log.forEach(e=>{const k=KINDS.find(x=>x[0]===e.k);L.push(`- ${e.t?'['+e.t+'] ':''}${k?k[1]+k[2]+': ':''}${e.x.replace(/\n/g,' / ')}`)});L.push('')}
  L.push('## 現地メモ(一次情報・本人が確認)','');
  let any=false;
  CATS.forEach(c=>{const rows=c.q.filter(q=>filled(s.a[q.id]));if(!rows.length)return;any=true;
@@ -299,6 +382,7 @@ function toMD(s){
  L.push('- 情報は「〇年〇月時点」と時点を明記し、確認できなかった項目は「未確認」とすること。');
  L.push('- 現地メモとWeb情報が食い違う場合は現地メモを優先し、食い違いを注記すること。');
  L.push('- 訪問時刻が「写真の撮影時刻から確認してほしい」の項目は、筆者が渡す写真のEXIF撮影時刻から時刻を補完すること。');
+ L.push('- 「旅のログ」は現地で書いた一言メモ。時刻は任意入力のため、無いものは入力順を時系列の目安にすること。');
  L.push('- 訪れた場所・飲食店は複数あるため、記事では時系列に並べ、各店の「注意・Tips」は読者向け情報として目立たせること。','');
  return L.join('\n');
 }
